@@ -20,7 +20,7 @@ interface User {
 
 export const createUser = async (request: Request, response: Response) => {
 
-    const { email, password, displayName, bio, idOraculo, photoURL, role} = request.body.data;
+    const { email, password, displayName, bio, idOraculo, photoURL, role } = request.body.data;
 
 
     const newUser: User = {
@@ -44,28 +44,29 @@ export const createUser = async (request: Request, response: Response) => {
         .catch((err: any) => {
             console.error(err);
 
-            if(err.code == 'auth/email-already-in-use') {
-                return response.status(400).json({ email: 'Email is already in use'});
+            if (err.code == 'auth/email-already-in-use') {
+                return response.status(400).json({ email: 'Email is already in use' });
             }
             return response.status(500).json({ error: err });
         })
 
-
-        return;
+    return;
 };
 
 export const getUsers = (request: Request, response: Response) => {
-    admin.firestore().collection('users').get()
-        .then(data => {
-            let users: any = [];
-
-            data.forEach(doc => {
-                users.push({
-                    userId: doc,
-                });
-            });
-
-            return response.json(users);
-        })
-        .catch(err => console.error(err))
-};
+    admin.firestore().collection('users').where("active", "==", true)
+    .get()
+    .then((data) => {
+        let users: { displayName: any; }[] = [];
+        data.forEach((doc) => {
+        users.push({
+            displayName: doc.data().displayName,
+          });
+        });
+        return response.json(users);
+      })
+      .catch((err) => {
+        console.error(err);
+        response.status(500).json({ error: err.code });
+      });
+  }
