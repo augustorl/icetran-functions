@@ -1,11 +1,7 @@
 import { Request, Response } from "express";
 import * as admin from 'firebase-admin';
 
-interface UserRole {
-    atendente: string;
-    administrador: string;
-    parceiro: string;
-}
+
 interface User {
     bio?: string;
     displayName: string;
@@ -13,37 +9,53 @@ interface User {
     emailVerified: false,
     idOraculo: number,
     photoURL?: string,
-    role: UserRole,
+    role: string,
+    phoneNumber: string;
     active: true,
+    uid: string,
     password: string,
 }
+type UserAuth = Pick<User, "email" | "password" >;
+type UserInfo = Omit<User,"password">;
 
 export const createUser = async (request: Request, response: Response) => {
 
-    const { email, password, displayName, bio, idOraculo, photoURL, role } = request.body.data;
+    const { email, password, displayName, bio, idOraculo, photoURL, role, phoneNumber } = request.body.data;
 
 
-    const newUser: User = {
-        bio,
-        displayName,
+    const UserAuthInfo: UserAuth = {
         email,
-        emailVerified: false,
-        idOraculo,
-        photoURL,
-        role,
         password,
-        active: true,
     };
 
-    await admin.auth().createUser(newUser)
-        .then(() => {
-            admin.firestore().collection('users').add(newUser);
+    await admin.auth().createUser(UserAuthInfo)
+        .then((doc) => {
 
-            return response.status(201).json({ message: `user: ${newUser} created!` })
+            const UserInfo: UserInfo =
+            { 
+                email,
+                displayName,
+                bio,
+                idOraculo,
+                role,
+                phoneNumber,
+                emailVerified: false,
+                active: true,
+                photoURL,
+                uid: doc.uid
+            };
+
+            admin.firestore().collection('users').add(UserInfo);
+
+            admin.auth().setCustomUserClaims(doc.uid, UserInfo);
+
+            return response.status(201).json({ message: `user: ${UserInfo.displayName} created with uid:${doc.uid}` })
         })
         .catch((err: any) => {
             console.error(err);
-
+            if (err.code == 'auth/phone-number-already-exists') {
+                return response.status(400).json({ email: 'Phone Number Already Exists'});
+            }
             if (err.code == 'auth/email-already-in-use') {
                 return response.status(400).json({ email: 'Email is already in use' });
             }
@@ -52,6 +64,23 @@ export const createUser = async (request: Request, response: Response) => {
 
     return;
 };
+
+
+export const updateUser = async (request: Request, response: Response) => {
+    const uid = request.params.uid;
+    
+    const updatedData = request.body.data;
+
+    try {
+        await admin.auth().updateUser(uid, updatedData).then((response) => {
+            admin.auth().setCustomUserClaims(uid, updatedData);
+        })
+    } catch(err) {
+        console.error({ error: err.message })
+    }
+
+    return;
+}
 
 export const getUsers = (request: Request, response: Response) => {
     admin.firestore().collection('users').where("active", "==", true)
