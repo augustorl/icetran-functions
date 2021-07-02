@@ -3,7 +3,7 @@ import * as admin from 'firebase-admin';
 import * as firestore from "firebase-admin";
 import firebase from "firebase";
 import { firebaseConfig } from "./config/firebase";
-import { createUser, getUsers, updateUser } from "./handlers/users";
+import { createUser, deleteUser, getUsers, updateUser } from "./handlers/users";
 const app = require('express')();
 
 
@@ -21,6 +21,8 @@ db.settings({ ignoreUndefinedProperties: true });
 // User Routes
 app.get('/users', getUsers)
 app.post('/user', createUser);
+app.delete('/user/:id', deleteUser);
+
 app.patch('/user/:uid', updateUser);
 
 
