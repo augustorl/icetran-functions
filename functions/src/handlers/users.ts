@@ -12,11 +12,11 @@ interface User {
     role: string,
     phoneNumber: string;
     active: true,
-    uid: string,
     password: string,
+    uid: string,
 }
-type UserAuth = Pick<User, "email" | "password" >;
-type UserInfo = Omit<User,"password">;
+type UserAuth = Pick<User, "email" | "password">;
+type UserInfo = Omit<User, "password">;
 
 export const createUser = async (request: Request, response: Response) => {
 
@@ -32,7 +32,7 @@ export const createUser = async (request: Request, response: Response) => {
         .then((doc) => {
 
             const UserInfo: UserInfo =
-            { 
+            {
                 email,
                 displayName,
                 bio,
@@ -42,19 +42,31 @@ export const createUser = async (request: Request, response: Response) => {
                 emailVerified: false,
                 active: true,
                 photoURL,
-                uid: doc.uid
+                uid: doc.uid,
             };
+            const UserCollection = admin.firestore().collection('users');
 
-            admin.firestore().collection('users').add(UserInfo);
+            UserCollection.doc(`${doc.uid}`).set({
+                displayName: UserInfo.displayName,
+                email: UserInfo.displayName,
+                bio: UserInfo.bio,
+                idOraculo: UserInfo.idOraculo,
+                role: UserInfo.role,
+                phoneNumber: UserInfo.phoneNumber,
+                emailVerified: false,
+                active: true,
+                photoURL: UserInfo.photoURL,
+                uid: doc.uid,
+            });
 
             admin.auth().setCustomUserClaims(doc.uid, UserInfo);
 
-            return response.status(201).json({ message: `user: ${UserInfo.displayName} created with uid:${doc.uid}` })
+            return response.status(201).json({ message: `user: ${UserInfo.displayName} created.` })
         })
         .catch((err: any) => {
             console.error(err);
             if (err.code == 'auth/phone-number-already-exists') {
-                return response.status(400).json({ email: 'Phone Number Already Exists'});
+                return response.status(400).json({ email: 'Phone Number Already Exists' });
             }
             if (err.code == 'auth/email-already-in-use') {
                 return response.status(400).json({ email: 'Email is already in use' });
@@ -65,17 +77,36 @@ export const createUser = async (request: Request, response: Response) => {
     return;
 };
 
+export const deleteUser = async (request: Request, response: Response) => {
+    const UserDocId = request.params.id;
+    
+    try {
 
+        const UserDoc = admin.firestore().collection('users').doc(`${UserDocId}`);
+
+        UserDoc.update({
+            active: false,
+        });
+
+        await admin.auth().deleteUser(UserDocId)
+
+        return response.status(200).json({ message: `User ${UserDocId} deleted`})
+    } catch (err) {
+        console.error(err);
+    };
+
+    return;
+}
 export const updateUser = async (request: Request, response: Response) => {
     const uid = request.params.uid;
-    
+
     const updatedData = request.body.data;
 
     try {
         await admin.auth().updateUser(uid, updatedData).then((response) => {
             admin.auth().setCustomUserClaims(uid, updatedData);
         })
-    } catch(err) {
+    } catch (err) {
         console.error({ error: err.message })
     }
 
@@ -84,18 +115,18 @@ export const updateUser = async (request: Request, response: Response) => {
 
 export const getUsers = (request: Request, response: Response) => {
     admin.firestore().collection('users').where("active", "==", true)
-    .get()
-    .then((data) => {
-        let users: { displayName: any; }[] = [];
-        data.forEach((doc) => {
-        users.push({
-            displayName: doc.data().displayName,
-          });
+        .get()
+        .then((data) => {
+            let users: { displayName: any; }[] = [];
+            data.forEach((doc) => {
+                users.push({
+                    displayName: doc.data().displayName,
+                });
+            });
+            return response.json(users);
+        })
+        .catch((err) => {
+            console.error(err);
+            response.status(500).json({ error: err.code });
         });
-        return response.json(users);
-      })
-      .catch((err) => {
-        console.error(err);
-        response.status(500).json({ error: err.code });
-      });
-  }
+}
