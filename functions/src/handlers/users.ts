@@ -14,14 +14,20 @@ interface User {
     active: true,
     password: string,
     uid: string,
+    birthDate: string,
 }
 type UserAuth = Pick<User, "email" | "password">;
 type UserInfo = Omit<User, "password">;
 
 export const createUser = async (request: Request, response: Response) => {
 
-    const { email, password, displayName, bio, idOraculo, photoURL, role, phoneNumber } = request.body.data;
+    const { email, displayName, bio, idOraculo, photoURL, role, phoneNumber, birthDate } = request.body.data;
 
+    const formatDate = new Date(birthDate);
+
+    const formattedDate = formatDate.toLocaleDateString('pt-br');
+
+    const password = "ibrep2021"
 
     const UserAuthInfo: UserAuth = {
         email,
@@ -43,6 +49,7 @@ export const createUser = async (request: Request, response: Response) => {
                 active: true,
                 photoURL,
                 uid: doc.uid,
+                birthDate: formattedDate,
             };
             const UserCollection = admin.firestore().collection('users');
 
@@ -57,6 +64,7 @@ export const createUser = async (request: Request, response: Response) => {
                 active: true,
                 photoURL: UserInfo.photoURL,
                 uid: doc.uid,
+                birthDate: UserInfo.birthDate
             });
 
             admin.auth().setCustomUserClaims(doc.uid, UserInfo);
@@ -79,7 +87,7 @@ export const createUser = async (request: Request, response: Response) => {
 
 export const deleteUser = async (request: Request, response: Response) => {
     const UserDocId = request.params.id;
-    
+
     try {
 
         const UserDoc = admin.firestore().collection('users').doc(`${UserDocId}`);
@@ -90,43 +98,48 @@ export const deleteUser = async (request: Request, response: Response) => {
 
         await admin.auth().deleteUser(UserDocId)
 
-        return response.status(200).json({ message: `User ${UserDocId} deleted`})
+        return response.status(200).json({ message: `User ${UserDocId} deleted` })
     } catch (err) {
         console.error(err);
     };
 
     return;
+};
+
+export const getUser = async (request: Request, response: Response) => {
+    const { id } = request.params;
+
+    const user = await admin.auth().getUser(id);
+
+    return response.status(400).json({ user: user });
 }
-export const updateUser = async (request: Request, response: Response) => {
-    const uid = request.params.uid;
 
-    const updatedData = request.body.data;
-
+export const getUsers = async (request: Request, response: Response) => {
     try {
-        await admin.auth().updateUser(uid, updatedData).then((response) => {
-            admin.auth().setCustomUserClaims(uid, updatedData);
-        })
+        const userList: FirebaseFirestore.DocumentData[] = [];
+
+        const UserCollection = admin.firestore().collection('users');
+
+        const snapshot = await UserCollection.where('active', '==', true).get();
+        if (snapshot.empty) {
+            console.log('No active users.');
+            return;
+        }
+
+        snapshot.forEach(doc => {
+            console.log(doc.data());
+            console.log(doc.id);
+
+            userList.push(doc.data());
+
+
+        });
+
+        return response.status(200).json(userList);
     } catch (err) {
-        console.error({ error: err.message })
+        console.error(err)
     }
 
     return;
-}
 
-export const getUsers = (request: Request, response: Response) => {
-    admin.firestore().collection('users').where("active", "==", true)
-        .get()
-        .then((data) => {
-            let users: { displayName: any; }[] = [];
-            data.forEach((doc) => {
-                users.push({
-                    displayName: doc.data().displayName,
-                });
-            });
-            return response.json(users);
-        })
-        .catch((err) => {
-            console.error(err);
-            response.status(500).json({ error: err.code });
-        });
 }
