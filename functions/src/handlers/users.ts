@@ -11,31 +11,45 @@ interface User {
     photoURL?: string,
     role: string,
     phoneNumber: string;
-    active: true,
+    disabled: boolean,
     password: string,
     uid: string,
-    birthDate: string,
 }
-type UserAuth = Pick<User, "email" | "password">;
+
+interface UserAuth {
+    email: string,
+    password: string,
+    phoneNumber: string;
+    displayName: string;
+    photoURL: string;
+    disabled: boolean;
+}
 type UserInfo = Omit<User, "password">;
 
 export const createUser = async (request: Request, response: Response) => {
 
-    const { email, displayName, bio, idOraculo, photoURL, role, phoneNumber, birthDate } = request.body.data;
+    const { email, displayName, bio, idOraculo, photoURL, role, phoneNumber } = request.body.user;
 
-    const formatDate = new Date(birthDate);
-
-    const formattedDate = formatDate.toLocaleDateString('pt-br');
-
+    const claims = {
+        phoneNumber,
+        displayName,
+        photoURL,
+        disabled: false,
+    }
     const password = "ibrep2021"
 
     const UserAuthInfo: UserAuth = {
         email,
         password,
+        phoneNumber: claims.phoneNumber,
+        displayName: claims.displayName,
+        photoURL: claims.photoURL,
+        disabled: claims.disabled,
     };
 
     await admin.auth().createUser(UserAuthInfo)
         .then((doc) => {
+            admin.auth().setCustomUserClaims(doc.uid, claims);
 
             const UserInfo: UserInfo =
             {
@@ -46,28 +60,27 @@ export const createUser = async (request: Request, response: Response) => {
                 role,
                 phoneNumber,
                 emailVerified: false,
-                active: true,
+                disabled: false,
                 photoURL,
                 uid: doc.uid,
-                birthDate: formattedDate,
             };
             const UserCollection = admin.firestore().collection('users');
 
+
             UserCollection.doc(`${doc.uid}`).set({
                 displayName: UserInfo.displayName,
-                email: UserInfo.displayName,
+                email: UserInfo.email,
                 bio: UserInfo.bio,
                 idOraculo: UserInfo.idOraculo,
                 role: UserInfo.role,
-                phoneNumber: UserInfo.phoneNumber,
+                phoneNumber: claims.phoneNumber,
                 emailVerified: false,
-                active: true,
+                disabled: false,
                 photoURL: UserInfo.photoURL,
                 uid: doc.uid,
-                birthDate: UserInfo.birthDate
             });
 
-            admin.auth().setCustomUserClaims(doc.uid, UserInfo);
+            
 
             return response.status(201).json({ message: `user: ${UserInfo.displayName} created.` })
         })
@@ -142,4 +155,21 @@ export const getUsers = async (request: Request, response: Response) => {
 
     return;
 
+}
+
+export const updateUser = async (request: Request, response: Response) => {
+    try {
+        const { id } = request.params;
+        const data = request.body.data;
+
+        await admin.auth().updateUser(id, data).then((doc) => {
+            admin.auth().setCustomUserClaims(id, data.claims);
+
+            return data;
+        }).catch((err) => {
+            console.error(err);
+        })
+    } catch (err) {
+        console.error(err);
+    }
 }
